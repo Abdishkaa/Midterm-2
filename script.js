@@ -1,137 +1,93 @@
-const apiKey = 'b3cbd0cd602a1893e67150d14c1a7a7c';
-let unit = 'metric'; 
-let city = '';
+
+const apiKey = '9882d7cfa14b488481c6519178c18f20';
+let favorites = JSON.parse(localStorage.getItem('favorites')) || [];
+
+const searchBtn = document.getElementById('search-btn');
+const mealList = document.getElementById('meal');
+const mealDetailsContent = document.querySelector('.meal-details-content');
+const recipeCloseBtn = document.getElementById('recipe-close-btn');
 
 
-function getWeather() {
-    city = document.getElementById('city').value;
+searchBtn.addEventListener('click', getMealList);
+mealList.addEventListener('click', getMealRecipe);
+recipeCloseBtn.addEventListener('click', () => {
+    mealDetailsContent.parentElement.classList.remove('showRecipe');
+});
 
-    if (!city) {
-        alert('Enter a city');
+
+function getMealList() {
+    const query = document.getElementById('search-input').value.trim();
+    if (!query) {
+        alert('Please enter an ingredient.');
         return;
     }
 
-    fetchCurrentWeather();
-    fetchForecast();
-}
-
-
-function toggleUnit() {
-    unit = document.getElementById('unit-toggle').checked ? 'imperial' : 'metric';
-    if (city) {
-        fetchCurrentWeather();
-        fetchForecast();
-    }
-}
-
-
-function fetchCurrentWeather() {
-    const currentWeatherUrl = `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=${unit}&appid=${apiKey}`;
-
-    fetch(currentWeatherUrl)
+    fetch(`https://api.spoonacular.com/recipes/complexSearch?query=${query}&number=6&apiKey=${apiKey}`)
         .then(response => response.json())
-        .then(data => displayWeather(data))
+        .then(data => {
+            let html = "";
+            if (data.results && data.results.length > 0) {
+                data.results.forEach(recipe => {
+                    html += `
+                        <div class="meal-item" data-id="${recipe.id}">
+                            <div class="meal-img">
+                                <img src="${recipe.image}" alt="${recipe.title}">
+                            </div>
+                            <div class="meal-name">
+                                <h3>${recipe.title}</h3>
+                                <a href="#" class="recipe-btn">Get Recipe</a>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                html = "Sorry, no meals found!";
+            }
+            mealList.innerHTML = html;
+        })
         .catch(error => {
-            console.error('Error with fetching  weather data:', error);
-            alert('Error with  weather data. Please try again.');
+            console.error('Error fetching recipe data:', error);
+            alert('Error!. Please try again.');
         });
 }
 
 
-function fetchForecast() {
-    const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?q=${city}&units=${unit}&appid=${apiKey}`;
-
-    fetch(forecastUrl)
-        .then(response => response.json())
-        .then(data => displayForecast(data.list))
-        .catch(error => {
-            console.error('Error with fetching forecast data:', error);
-            alert('Error with fetching forecast data. Please try again.');
-        });
-}
-
-
-function displayWeather(data) {
-    const tempDivInfo = document.getElementById('temp-div');
-    const weatherInfoDiv = document.getElementById('weather-info');
-    const humidityWindDiv = document.getElementById('humidity-wind');
-    const weatherIcon = document.getElementById('weather-icon');
-
-    if (data.cod === '404') {
-        weatherInfoDiv.innerHTML = `<p>${data.message}</p>`;
-    } else {
-        const cityName = data.name;
-        const temperature = Math.round(data.main.temp);
-        const description = data.weather[0].description;
-        const iconCode = data.weather[0].icon;
-        const humidity = data.main.humidity;
-        const windSpeed = data.wind.speed;
-
-        weatherIcon.src = `https://openweathermap.org/img/wn/${iconCode}@4x.png`;
-        weatherIcon.alt = description;
-
-        tempDivInfo.innerHTML = `<p>${temperature}°${unit === 'metric' ? 'C' : 'F'}</p>`;
-        weatherInfoDiv.innerHTML = `<p>${cityName} - ${description}</p>`;
-        humidityWindDiv.innerHTML = `<p>Humidity: ${humidity}% | Wind: ${windSpeed} ${unit === 'metric' ? 'm/s' : 'mph'}</p>`;
-        weatherIcon.style.display = 'block';
+function getMealRecipe(e) {
+    e.preventDefault();
+    if (e.target.classList.contains('recipe-btn')) {
+        const mealId = e.target.closest('.meal-item').getAttribute('data-id');
+        fetch(`https://api.spoonacular.com/recipes/${mealId}/information?includeNutrition=true&apiKey=${apiKey}`)
+            .then(response => response.json())
+            .then(data => {
+                mealRecipeModal(data);
+            })
+            .catch(error => {
+                console.error('Error fetching recipe details:', error);
+                alert('Error!. Please try again.');
+            });
     }
 }
 
 
-function displayForecast(data) {
-    const forecastDiv = document.getElementById('forecast');
-    forecastDiv.innerHTML = '';
-
-
-    const dailyData = data.filter(item => item.dt_txt.includes("12:00:00"));
-
-    dailyData.forEach(item => {
-        const date = new Date(item.dt * 1000);
-        const day = date.toLocaleDateString(undefined, { weekday: 'short' });
-        const maxTemp = Math.round(item.main.temp_max);
-        const minTemp = Math.round(item.main.temp_min);
-        const iconCode = item.weather[0].icon;
-        const description = item.weather[0].description;
-
-        forecastDiv.innerHTML += `
-            <div class="forecast-item">
-                <p>${day}</p>
-                <img src="https://openweathermap.org/img/wn/${iconCode}@2x.png" alt="${description}">
-                <p>${maxTemp}° / ${minTemp}°</p>
-                <p>${description}</p>
-            </div>
-        `;
-    });
-}
-
-
-function getCurrentLocation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(position => {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-
-            const locationWeatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=${unit}&appid=${apiKey}`;
-            const locationForecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=${unit}&appid=${apiKey}`;
-
-            fetch(locationWeatherUrl)
-                .then(response => response.json())
-                .then(data => displayWeather(data));
-
-            fetch(locationForecastUrl)
-                .then(response => response.json())
-                .then(data => displayForecast(data.list));
-        });
-    } else {
-        alert('Geolocation is not supported by your browser');
-    }
-}
-
-
-
-
-function selectCity(cityName) {
-    document.getElementById('city').value = cityName;
-    document.getElementById('suggestions').innerHTML = '';
-    getWeather();
+function mealRecipeModal(recipe) {
+    const html = `
+        <h2 class="recipe-title">${recipe.title}</h2>
+        <p class="recipe-category">${recipe.dishTypes ? recipe.dishTypes.join(', ') : 'N/A'}</p>
+        <div class="recipe-instruct">
+            <h3>Instructions:</h3>
+            <p>${recipe.instructions || 'No instructions available.'}</p>
+        </div>
+        <div class="recipe-meal-img">
+            <img src="${recipe.image}" alt="${recipe.title}">
+        </div>
+        <div class="recipe-nutrition">
+            <h3>Nutrition Information:</h3>
+            <p>Calories: ${recipe.nutrition.nutrients[0]?.amount || 'N/A'} kcal</p>
+            <p>Protein: ${recipe.nutrition.nutrients[1]?.amount || 'N/A'} g</p>
+            <p>Fat: ${recipe.nutrition.nutrients[2]?.amount || 'N/A'} g</p>
+            <p>Carbs: ${recipe.nutrition.nutrients[3]?.amount || 'N/A'} g</p>
+        </div>
+    `;
+    mealDetailsContent.innerHTML = html;
+    mealDetailsContent.parentElement.classList.add('showRecipe');
 }
